@@ -17,12 +17,12 @@ DATA_URL = "https://scrippsco2.ucsd.edu/assets/data/atmospheric/stations/in_situ
 def load_public_data():
     """Scripps CO2 데이터를 로드하고 전처리합니다."""
     try:
-        # pd.read_csv의 'comment' 파라미터를 사용하여 주석 줄을 바로 건너뜁니다.
-        # 이것이 이 파일 형식을 처리하는 가장 안정적인 방법입니다.
-        df = pd.read_csv(DATA_URL, comment='"')
+        # delim_whitespace=True 옵션으로 공백 구분자를 처리하고, header=None으로 헤더가 없음을 명시합니다.
+        df = pd.read_csv(DATA_URL, comment='"', delim_whitespace=True, header=None)
         
-        # 원본 데이터의 열 이름이 없으므로 직접 지정합니다.
+        # 이제 pandas가 정확히 10개의 열로 읽어오므로, 아래 열 이름 지정이 정상적으로 작동합니다.
         df.columns = ["year", "month", "date_excel", "date_decimal", "value", "seasonally_adjusted", "fit", "seasonally_adjusted_fit", "co2_filled", "seasonally_adjusted_filled"]
+        
         df = df[['year', 'month', 'value']].copy()
 
         # -99.99는 결측치를 의미하므로 제거합니다.
@@ -35,7 +35,6 @@ def load_public_data():
         df = df[['date', 'value']]
         
         # 오늘(로컬 자정) 이후 데이터 제거
-        # 현재 시간은 2025-09-16 입니다.
         today = datetime.now(timezone.utc).date()
         df = df[df['date'].dt.date < today]
         
