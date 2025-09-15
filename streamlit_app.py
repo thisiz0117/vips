@@ -17,10 +17,16 @@ DATA_URL = "https://scrippsco2.ucsd.edu/assets/data/atmospheric/stations/in_situ
 def load_public_data():
     """Scripps CO2 데이터를 로드하고 전처리합니다."""
     try:
-        # delim_whitespace=True 옵션으로 공백 구분자를 처리하고, header=None으로 헤더가 없음을 명시합니다.
-        df = pd.read_csv(DATA_URL, comment='"', delim_whitespace=True, header=None)
+        # on_bad_lines='skip' 옵션을 추가하여 형식에 맞지 않는 행을 건너뜁니다.
+        df = pd.read_csv(
+            DATA_URL, 
+            comment='"', 
+            delim_whitespace=True, 
+            header=None,
+            on_bad_lines='skip' 
+        )
         
-        # 이제 pandas가 정확히 10개의 열로 읽어오므로, 아래 열 이름 지정이 정상적으로 작동합니다.
+        # 열 이름 지정
         df.columns = ["year", "month", "date_excel", "date_decimal", "value", "seasonally_adjusted", "fit", "seasonally_adjusted_fit", "co2_filled", "seasonally_adjusted_filled"]
         
         df = df[['year', 'month', 'value']].copy()
@@ -264,4 +270,4 @@ def main():
     create_user_data_dashboard(user_df)
 
 if __name__ == "__main__":
-    main()
+    main
