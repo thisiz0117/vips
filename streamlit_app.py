@@ -5,19 +5,7 @@ from plotly.subplots import make_subplots
 import requests
 import io
 from datetime import datetime, timezone
-import os
 from scipy.signal import savgol_filter
-
-# --- 폰트 설정 ---
-# GitHub Codespaces 환경에 Pretendard 폰트가 없으므로, 파일 존재 여부를 확인합니다.
-# 폰트 파일은 streamlit 앱의 fonts 디렉토리 내에 위치해야 합니다. (/.streamlit/fonts/Pretendard-Bold.ttf)
-# 단, 이 코드에서는 로컬에 폰트가 없는 경우를 가정하여 폰트 설정을 건너뜁니다.
-# 만약 실제 환경에 폰트 파일이 있다면 아래 주석을 해제하고 경로를 확인하세요.
-FONT_PATH = '/fonts/Pretendard-Bold.ttf'
-def set_font():
-    """폰트 적용 함수 (파일이 있을 경우에만)"""
-    # Matplotlib, Seaborn 폰트 설정은 해당 라이브러리 사용 시 추가
-    pass
 
 # --- 1. 공식 공개 데이터 대시보드 (전 지구 이산화탄소 농도) ---
 
@@ -29,41 +17,31 @@ DATA_URL = "https://scrippsco2.ucsd.edu/assets/data/atmospheric/stations/in_situ
 def load_public_data():
     """Scripps CO2 데이터를 로드하고 전처리합니다."""
     try:
-        # 데이터 URL에서 직접 로드 (주석 처리된 행 건너뛰기)
-        response = requests.get(DATA_URL)
-        response.raise_for_status()  # HTTP 오류 발생 시 예외 발생
+        # pd.read_csv의 'comment' 파라미터를 사용하여 주석 줄을 바로 건너뜁니다.
+        # 이것이 이 파일 형식을 처리하는 가장 안정적인 방법입니다.
+        df = pd.read_csv(DATA_URL, comment='"')
         
-        # 주석 처리된 라인과 실제 데이터 시작점 찾기
-        lines = response.text.splitlines()
-        data_start_line = 0
-        for i, line in enumerate(lines):
-            if '"Date"' in line:
-                data_start_line = i
-                break
-        
-        # 데이터프레임으로 변환
-        csv_data = "\n".join(lines[data_start_line:])
-        df = pd.read_csv(io.StringIO(csv_data))
-        
-        # 열 이름 표준화 및 데이터 정제
-        df.columns = [col.strip().replace('"', '') for col in df.columns]
-        df = df[['Date', 'CO2']].copy()
-        df.rename(columns={'Date': 'date', 'CO2': 'value'}, inplace=True)
-        
-        # CO2 값이 유효하지 않은 행(-99.99) 제거
+        # 원본 데이터의 열 이름이 없으므로 직접 지정합니다.
+        df.columns = ["year", "month", "date_excel", "date_decimal", "value", "seasonally_adjusted", "fit", "seasonally_adjusted_fit", "co2_filled", "seasonally_adjusted_filled"]
+        df = df[['year', 'month', 'value']].copy()
+
+        # -99.99는 결측치를 의미하므로 제거합니다.
         df = df[df['value'] != -99.99]
 
-        # 데이터 타입 변환
-        df['date'] = pd.to_datetime(df['date'])
-        df['value'] = pd.to_numeric(df['value'])
+        # 날짜(date) 열 생성
+        df['date'] = pd.to_datetime(df['year'].astype(str) + '-' + df['month'].astype(str))
+        
+        # 필요한 열만 선택
+        df = df[['date', 'value']]
         
         # 오늘(로컬 자정) 이후 데이터 제거
+        # 현재 시간은 2025-09-16 입니다.
         today = datetime.now(timezone.utc).date()
         df = df[df['date'].dt.date < today]
         
         return df, None # 성공 시 데이터프레임과 None 반환
 
-    except requests.exceptions.RequestException as e:
+    except Exception as e:
         error_message = f"데이터를 불러오는 데 실패했습니다: {e}"
         # 예시 데이터 생성
         date_rng = pd.date_range(start='1958-03-01', end='2024-01-01', freq='MS')
@@ -74,7 +52,7 @@ def load_public_data():
 
 def create_public_data_dashboard(df):
     """공개 데이터로 대시보드를 생성합니다."""
-    st.subheader(" Scripps 기관의 전 지구 CO2 농도 변화 🌎")
+    st.subheader("Scripps 기관의 전 지구 CO2 농도 변화 🌎")
     st.markdown("""
     하와이 마우나로아 관측소에서 측정한 월별 대기 중 이산화탄소(CO2) 농도 데이터입니다. 
     산업화 이후 급격히 증가하는 CO2 농도 추세를 확인할 수 있습니다.
@@ -98,7 +76,7 @@ def create_public_data_dashboard(df):
         return
 
     # 데이터 필터링
-    filtered_df = df[(df['date'].dt.date >= start_date) & (df['date'].dt.date <= end_date)]
+    filtered_df = df[(df['date'].dt.date >= start_date) & (df['date'].dt.date <= end_date)].copy()
 
     use_smoothing = st.sidebar.checkbox("추세선 스무딩", value=True, key="public_smoothing")
     if use_smoothing and len(filtered_df) > 11:
@@ -112,10 +90,9 @@ def create_public_data_dashboard(df):
     fig.add_trace(go.Scatter(
         x=filtered_df['date'], 
         y=filtered_df['value'], 
-        mode='lines+markers', 
+        mode='lines', 
         name='월별 CO2 농도',
-        line=dict(color='lightblue', width=1),
-        marker=dict(size=3)
+        line=dict(color='lightblue', width=1)
     ))
 
     # 스무딩된 추세선
@@ -140,9 +117,13 @@ def create_public_data_dashboard(df):
     
     # --- 데이터 내보내기 ---
     st.markdown("##### 데이터 확인 및 다운로드")
-    st.dataframe(filtered_df.style.format({'value': '{:.2f}', 'smoothed': '{:.2f}'}), use_container_width=True)
+    download_df = filtered_df.copy()
+    if 'smoothed' in download_df.columns:
+        download_df['smoothed'] = download_df['smoothed'].round(2)
+    download_df['value'] = download_df['value'].round(2)
+    st.dataframe(download_df, use_container_width=True)
     
-    csv = filtered_df.to_csv(index=False).encode('utf-8')
+    csv = download_df.to_csv(index=False).encode('utf-8')
     st.download_button(
         label="처리된 데이터(CSV) 다운로드",
         data=csv,
@@ -268,8 +249,6 @@ def create_user_data_dashboard(df):
 
 # --- 메인 앱 실행 ---
 def main():
-    set_font() # 폰트 설정 시도
-    
     st.set_page_config(page_title="탄소중립 데이터 대시보드", layout="wide")
     st.title("🌱 탄소중립 데이터 대시보드")
     
