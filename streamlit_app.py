@@ -16,7 +16,7 @@ DATA_URL = "https://scrippsco2.ucsd.edu/assets/data/atmospheric/stations/in_situ
 @st.cache_data(ttl=3600)  # 1시간 동안 캐시
 def load_public_data():
     """Scripps CO2 데이터를 로드하고 전처리합니다."""
-    try B
+    try:
         # 1. 먼저 requests로 파일 내용을 텍스트로 가져옵니다.
         response = requests.get(DATA_URL)
         response.raise_for_status()
