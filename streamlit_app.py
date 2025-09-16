@@ -7,7 +7,7 @@ import io
 from datetime import datetime, timezone
 from scipy.signal import savgol_filter
 
-# --- 1. 공식 공개 데이터 대시보드 (전 지구 이산화탄소 농도) ---
+# --- 1. 공식 공개 데이터 대시보드 (전 지구 이산화탄소 농도) --- 
 
 # 데이터 출처: Scripps Institution of Oceanography, UC San Diego
 # URL: https://scrippsco2.ucsd.edu/data/atmospheric_co2/primary_mlo_co2_record.html
