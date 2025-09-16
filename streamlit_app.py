@@ -16,7 +16,7 @@ DATA_URL = "https://scrippsco2.ucsd.edu/assets/data/atmospheric/stations/in_situ
 @st.cache_data(ttl=3600)  # 1시간 동안 캐시
 def load_public_data():
     """Scripps CO2 데이터를 로드하고 전처리합니다."""
-    try:
+    try B
         # 1. 먼저 requests로 파일 내용을 텍스트로 가져옵니다.
         response = requests.get(DATA_URL)
         response.raise_for_status()
@@ -25,7 +25,7 @@ def load_public_data():
         # 2. 주석이 아닌, 실제 데이터가 시작되는 첫 번째 줄을 찾습니다.
         data_start_line = 0
         for i, line in enumerate(lines):
-            if not line.strip().startswith('"'):
+            if line.strip() and not line.strip().startswith('"'):
                 data_start_line = i
                 break
         
@@ -52,7 +52,7 @@ def load_public_data():
         # 필요한 열만 선택
         df = df[['date', 'value']]
         
-        # 오늘(로컬 자정) 이후 데이터 제거
+        # 오늘(로컬 자정) 이후 데이터 제거 (현재 시간 기준)
         today = datetime.now(timezone.utc).date()
         df = df[df['date'].dt.date < today]
         
