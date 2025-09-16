@@ -180,6 +180,7 @@ def create_public_data_dashboard(df):
         df = df[df['date'].dt.date < today]
 
         return df, None # 성공 시 데이터프레임과 None 반환
+
     except Exception as e:
         error_message = f"데이터를 불러오는 데 실패했습니다: {e}"
         # 예시 데이터 생성
