@@ -17,10 +17,22 @@ DATA_URL = "https://scrippsco2.ucsd.edu/assets/data/atmospheric/stations/in_situ
 def load_public_data():
     """Scripps CO2 데이터를 로드하고 전처리합니다."""
     try:
-        # on_bad_lines='skip' 옵션을 추가하여 형식에 맞지 않는 행을 건너뜁니다.
+        # 1. 먼저 requests로 파일 내용을 텍스트로 가져옵니다.
+        response = requests.get(DATA_URL)
+        response.raise_for_status()
+        lines = response.text.splitlines()
+
+        # 2. 주석이 아닌, 실제 데이터가 시작되는 첫 번째 줄을 찾습니다.
+        data_start_line = 0
+        for i, line in enumerate(lines):
+            if not line.strip().startswith('"'):
+                data_start_line = i
+                break
+        
+        # 3. 데이터 부분만 추출하여 pandas로 읽습니다.
+        csv_data = "\n".join(lines[data_start_line:])
         df = pd.read_csv(
-            DATA_URL, 
-            comment='"', 
+            io.StringIO(csv_data),
             delim_whitespace=True, 
             header=None,
             on_bad_lines='skip' 
