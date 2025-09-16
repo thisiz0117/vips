@@ -270,4 +270,4 @@ def main():
     create_user_data_dashboard(user_df)
 
 if __name__ == "__main__":
-    main
+    main()
