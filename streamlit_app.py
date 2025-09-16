@@ -41,13 +41,17 @@ def load_public_data():
         # 열 이름 지정
         df.columns = ["year", "month", "date_excel", "date_decimal", "value", "seasonally_adjusted", "fit", "seasonally_adjusted_fit", "co2_filled", "seasonally_adjusted_filled"]
         
-        df = df[['year', 'month', 'value']].copy()
 
-        # -99.99는 결측치를 의미하므로 제거합니다.
-        df = df[df['value'] != -99.99]
+    df = df[['year', 'month', 'value']].copy()
 
-        # 날짜(date) 열 생성
-        df['date'] = pd.to_datetime(df['year'].astype(str) + '-' + df['month'].astype(str))
+    # 'year' 컬럼이 숫자인 행만 남깁니다 (헤더 등 제거)
+    df = df[df['year'].apply(lambda x: str(x).isdigit())]
+
+    # -99.99는 결측치를 의미하므로 제거합니다.
+    df = df[df['value'] != -99.99]
+
+    # 날짜(date) 열 생성
+    df['date'] = pd.to_datetime(df['year'].astype(str) + '-' + df['month'].astype(str))
         
         # 필요한 열만 선택
         df = df[['date', 'value']]
@@ -132,59 +136,58 @@ def create_public_data_dashboard(df):
     
     st.plotly_chart(fig, use_container_width=True)
     
-    # --- 데이터 내보내기 ---
-    st.markdown("##### 데이터 확인 및 다운로드")
-    download_df = filtered_df.copy()
-    if 'smoothed' in download_df.columns:
-        download_df['smoothed'] = download_df['smoothed'].round(2)
-    download_df['value'] = download_df['value'].round(2)
-    st.dataframe(download_df, use_container_width=True)
-    
-    csv = download_df.to_csv(index=False).encode('utf-8')
-    st.download_button(
-        label="처리된 데이터(CSV) 다운로드",
-        data=csv,
-        file_name='co2_concentration_processed.csv',
-        mime='text/csv',
-    )
+    try:
+        # 1. 먼저 requests로 파일 내용을 텍스트로 가져옵니다.
+        response = requests.get(DATA_URL)
+        response.raise_for_status()
+        lines = response.text.splitlines()
 
+        # 2. 주석이 아닌, 실제 데이터가 시작되는 첫 번째 줄을 찾습니다.
+        data_start_line = 0
+        for i, line in enumerate(lines):
+            if line.strip() and not line.strip().startswith('"'):
+                data_start_line = i
+                break
 
-# --- 2. 사용자 입력 데이터 대시보드 ---
+        # 3. 데이터 부분만 추출하여 pandas로 읽습니다.
+        csv_data = "\n".join(lines[data_start_line:])
+        df = pd.read_csv(
+            io.StringIO(csv_data),
+            delim_whitespace=True, 
+            header=None,
+            on_bad_lines='skip' 
+        )
 
-@st.cache_data
-def load_user_data():
-    """사용자가 제공한 CSV 데이터를 로드하고 전처리합니다."""
-    csv_string = """year,temp_anomaly,co2_concentration
-2001,0.54,370.57
-2002,0.63,372.45
-2003,0.62,375.04
-2004,0.54,376.82
-2005,0.68,378.92
-2006,0.64,381.08
-2007,0.66,382.72
-2008,0.54,384.99
-2009,0.66,386.37
-2010,0.72,388.57
-2011,0.61,390.52
-2012,0.65,392.52
-2013,0.68,395.27
-2014,0.74,397.14
-2015,0.9,399.99
-2016,1.02,403.3
-2017,0.93,405.5
-2018,0.85,407.4
-2019,0.98,409.8
-2020,1.02,412.5
-2021,0.85,414.7
-2022,0.86,417.2
-2023,1.18,419.3
-"""
-    df = pd.read_csv(io.StringIO(csv_string))
-    df.rename(columns={'year': 'date', 'temp_anomaly': 'value', 'co2_concentration': 'group'}, inplace=True)
-    df['date'] = pd.to_datetime(df['date'], format='%Y')
-    
-    # 오늘(로컬 자정) 이후 데이터 제거 (연도 기준)
-    current_year = datetime.now(timezone.utc).year
+        # 열 이름 지정
+        df.columns = ["year", "month", "date_excel", "date_decimal", "value", "seasonally_adjusted", "fit", "seasonally_adjusted_fit", "co2_filled", "seasonally_adjusted_filled"]
+
+        df = df[['year', 'month', 'value']].copy()
+
+        # 'year' 컬럼이 숫자인 행만 남깁니다 (헤더 등 제거)
+        df = df[df['year'].apply(lambda x: str(x).isdigit())]
+
+        # -99.99는 결측치를 의미하므로 제거합니다.
+        df = df[df['value'] != -99.99]
+
+        # 날짜(date) 열 생성
+        df['date'] = pd.to_datetime(df['year'].astype(str) + '-' + df['month'].astype(str))
+
+        # 필요한 열만 선택
+        df = df[['date', 'value']]
+
+        # 오늘(로컬 자정) 이후 데이터 제거 (현재 시간 기준)
+        today = datetime.now(timezone.utc).date()
+        df = df[df['date'].dt.date < today]
+
+        return df, None # 성공 시 데이터프레임과 None 반환
+    except Exception as e:
+        error_message = f"데이터를 불러오는 데 실패했습니다: {e}"
+        # 예시 데이터 생성
+        date_rng = pd.date_range(start='1958-03-01', end='2024-01-01', freq='MS')
+        co2_data = [315.71 + 0.005 * i**2 + 2 * (i % 12) for i in range(len(date_rng))]
+        example_df = pd.DataFrame(date_rng, columns=['date'])
+        example_df['value'] = co2_data
+        return example_df, error_message
     df = df[df['date'].dt.year < current_year]
     
     return df
